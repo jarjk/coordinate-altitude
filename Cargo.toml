@@ -3,6 +3,14 @@ name = "coordinate-altitude"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["Jeromos Kovács <iitsnotme214@proton.me>"]
+description = "Fetch altitude/elevation for geographical coordinates of planet Earth."
+keywords = ["geo"]
+categories = ["command-line-interface"]
+repository = "https://github.com/jeromeschmied/coordinate-altitude"
+documentation = "https://docs.rs/coordinate-altitude"
+license = "MIT"
+
 [dependencies]
 dirs = "5.0.1"
 serde = { version = "1.0.203", default-features = false, features = [
