@@ -13,9 +13,14 @@ pub struct Coord {
 }
 impl Coord {
     pub fn new<F1: Into<f64>, F2: Into<f64>>(latitude: F1, longitude: F2) -> Self {
+        let latitude: f64 = latitude.into();
+        let longitude: f64 = longitude.into();
+
+        assert!(latitude <= 90. && longitude <= 90.);
+
         Self {
-            latitude: latitude.into(),
-            longitude: longitude.into(),
+            latitude,
+            longitude,
             altitude: 0.,
         }
     }
@@ -25,10 +30,60 @@ impl Coord {
             ..*self
         }
     }
+
+    fn get_form(&self) -> String {
+        format!("{},{}", self.latitude, self.longitude)
+    }
+
+    pub fn fetch_altitude(&self) -> Self {
+        let resp = ureq::get("https://api.open-elevation.com/api/v1/lookup")
+            .query("locations", &self.get_form())
+            .call()
+            .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
+            .unwrap()
+            .into_string()
+            .unwrap();
+        // eprintln!("response: {resp:?}");
+
+        // leading: ""results": {["
+        let resp = &resp[12..];
+        // trailing: "]}"
+        let resp = &resp[0..resp.len() - 2];
+        // eprintln!("fixed response: {resp:?}");
+
+        serde_json::from_str(resp)
+            .inspect_err(|e| eprintln!("parse error: {e:#?}"))
+            .unwrap()
+    }
 }
-impl From<(f32, f32)> for Coord {
-    fn from(val: (f32, f32)) -> Self {
-        Coord::new(val.0, val.1)
+pub fn fetch_altitude(coords: &[Coord]) -> Vec<Coord> {
+    let data = serde_json::to_string(coords)
+        .inspect_err(|e| eprintln!("serialization error: {e:#?}"))
+        .unwrap();
+    let data = format!("{{\"locations\":{data}}}");
+    eprintln!("sending: {data:?}");
+
+    let resp = ureq::post("https://api.open-elevation.com/api/v1/lookup")
+        .set("Accept", "application/json")
+        .set("Content-Type", "application/json")
+        .send_bytes(data.as_bytes())
+        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
+        .unwrap()
+        .into_string()
+        .unwrap();
+    // leading: ""results": {"
+    let resp = &resp[11..];
+    // trailing: "}"
+    let resp = &resp[0..resp.len() - 1];
+
+    serde_json::from_str(resp)
+        .inspect_err(|e| eprintln!("parse error: {e:#?}"))
+        .unwrap()
+}
+
+impl<F1: Into<f64>, F2: Into<f64>> From<(F1, F2)> for Coord {
+    fn from(val: (F1, F2)) -> Self {
+        Self::new(val.0, val.1)
     }
 }
 
