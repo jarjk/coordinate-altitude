@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+/// universal error type
+pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
+
 /// a coordinate
 #[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Coord {
@@ -35,25 +38,25 @@ impl Coord {
         format!("{},{}", self.latitude, self.longitude)
     }
 
-    pub fn fetch_altitude(&self) -> Self {
-        *fetch_altitude(&[*self]).first().unwrap()
+    pub fn fetch_altitude(&self) -> Option<Self> {
+        fetch_altitude(&[*self]).ok()?.first().copied()
     }
 }
 
-pub fn fetch_altitude(coords: &[Coord]) -> Vec<Coord> {
+pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let resp = if let Some(got_resp) = fetch_altitude_get(coords) {
         got_resp
     } else {
-        fetch_altitude_post(coords)
+        fetch_altitude_post(coords)?
     };
     // leading: ""results": {"
     let resp = &resp[11..];
     // trailing: "}"
     let resp = &resp[0..resp.len() - 1];
 
-    serde_json::from_str(resp)
-        .inspect_err(|e| eprintln!("parse error: {e:#?}"))
-        .unwrap()
+    let resp =
+        serde_json::from_str::<Vec<_>>(resp).inspect_err(|e| eprintln!("parse error: {e:#?}"))?;
+    Ok(resp)
 }
 
 fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
@@ -70,26 +73,24 @@ fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
         .query("locations", &form)
         .call()
         .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
-        .unwrap()
+        .ok()?
         .into_string()
         .ok()
 }
 
-fn fetch_altitude_post(coords: &[Coord]) -> String {
-    let data = serde_json::to_string(coords)
-        .inspect_err(|e| eprintln!("serialization error: {e:#?}"))
-        .unwrap();
+fn fetch_altitude_post(coords: &[Coord]) -> Res<String> {
+    let data =
+        serde_json::to_string(coords).inspect_err(|e| eprintln!("serialization error: {e:#?}"))?;
     let data = format!("{{\"locations\":{data}}}");
     // eprintln!("sending: {data:?}");
 
-    ureq::post("https://api.open-elevation.com/api/v1/lookup")
+    let res = ureq::post("https://api.open-elevation.com/api/v1/lookup")
         .set("Accept", "application/json")
         .set("Content-Type", "application/json")
         .send_bytes(data.as_bytes())
-        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
-        .unwrap()
-        .into_string()
-        .unwrap()
+        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))?
+        .into_string()?;
+    Ok(res)
 }
 
 impl<F1: Into<f64>, F2: Into<f64>> From<(F1, F2)> for Coord {
