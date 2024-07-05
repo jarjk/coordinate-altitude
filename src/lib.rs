@@ -11,7 +11,8 @@ pub struct Coord {
     /// x
     pub longitude: f64,
     /// elevation above sea-level
-    #[serde(alias = "elevation", skip_serializing)]
+    #[serde(alias = "elevation")]
+    // #[serde(alias = "elevation", skip_serializing)]
     pub altitude: f64,
 }
 impl Coord {
@@ -19,7 +20,7 @@ impl Coord {
         let latitude: f64 = latitude.into();
         let longitude: f64 = longitude.into();
 
-        assert!(latitude <= 90. && longitude <= 90.);
+        assert!((-90. ..=90.).contains(&latitude) && (-180. ..=180.).contains(&longitude));
 
         Self {
             latitude,
@@ -41,8 +42,23 @@ impl Coord {
     pub fn fetch_altitude(&self) -> Option<Self> {
         fetch_altitude(&[*self]).ok()?.first().copied()
     }
+
+    pub fn add_altitude(&mut self) -> Res<()> {
+        let mut with_altitude = [*self];
+        add_altitude(&mut with_altitude)?;
+        self.altitude = with_altitude[0].altitude;
+
+        Ok(())
+    }
 }
 
+/// # Usage
+/// ```rust
+/// use coordinate_altitude::*;
+/// let coords: Vec<Coord> = vec![(34.23, 32).into(), (8.87354, 67.124).into()];
+/// let coords: Res<Vec<Coord>> = fetch_altitude(&coords);
+/// println!("coordinates: {coords:?}");
+/// ```
 pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let resp = if let Some(got_resp) = fetch_altitude_get(coords) {
         got_resp
@@ -57,6 +73,14 @@ pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let resp =
         serde_json::from_str::<Vec<_>>(resp).inspect_err(|e| eprintln!("parse error: {e:#?}"))?;
     Ok(resp)
+}
+
+pub fn add_altitude(coords: &mut [Coord]) -> Res<()> {
+    let coords_with_altitude_data = fetch_altitude(coords)?;
+    for (i, coord) in coords.iter_mut().enumerate() {
+        coord.altitude = coords_with_altitude_data[i].altitude;
+    }
+    Ok(())
 }
 
 fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
