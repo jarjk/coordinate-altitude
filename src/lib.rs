@@ -36,41 +36,16 @@ impl Coord {
     }
 
     pub fn fetch_altitude(&self) -> Self {
-        let resp = ureq::get("https://api.open-elevation.com/api/v1/lookup")
-            .query("locations", &self.get_form())
-            .call()
-            .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
-            .unwrap()
-            .into_string()
-            .unwrap();
-        // eprintln!("response: {resp:?}");
-
-        // leading: ""results": {["
-        let resp = &resp[12..];
-        // trailing: "]}"
-        let resp = &resp[0..resp.len() - 2];
-        // eprintln!("fixed response: {resp:?}");
-
-        serde_json::from_str(resp)
-            .inspect_err(|e| eprintln!("parse error: {e:#?}"))
-            .unwrap()
+        *fetch_altitude(&[*self]).first().unwrap()
     }
 }
-pub fn fetch_altitude(coords: &[Coord]) -> Vec<Coord> {
-    let data = serde_json::to_string(coords)
-        .inspect_err(|e| eprintln!("serialization error: {e:#?}"))
-        .unwrap();
-    let data = format!("{{\"locations\":{data}}}");
-    eprintln!("sending: {data:?}");
 
-    let resp = ureq::post("https://api.open-elevation.com/api/v1/lookup")
-        .set("Accept", "application/json")
-        .set("Content-Type", "application/json")
-        .send_bytes(data.as_bytes())
-        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
-        .unwrap()
-        .into_string()
-        .unwrap();
+pub fn fetch_altitude(coords: &[Coord]) -> Vec<Coord> {
+    let resp = if let Some(got_resp) = fetch_altitude_get(coords) {
+        got_resp
+    } else {
+        fetch_altitude_post(coords)
+    };
     // leading: ""results": {"
     let resp = &resp[11..];
     // trailing: "}"
@@ -78,6 +53,42 @@ pub fn fetch_altitude(coords: &[Coord]) -> Vec<Coord> {
 
     serde_json::from_str(resp)
         .inspect_err(|e| eprintln!("parse error: {e:#?}"))
+        .unwrap()
+}
+
+fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
+    let mut form = coords
+        .iter()
+        .fold(String::new(), |sum, cnt| sum + &cnt.get_form() + "|");
+    // trailing |
+    form.pop();
+    if form.as_bytes().len() < 1024 {
+        return None;
+    }
+    // eprintln!("sending: {form:?}");
+    ureq::get("https://api.open-elevation.com/api/v1/lookup")
+        .query("locations", &form)
+        .call()
+        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
+        .unwrap()
+        .into_string()
+        .ok()
+}
+
+fn fetch_altitude_post(coords: &[Coord]) -> String {
+    let data = serde_json::to_string(coords)
+        .inspect_err(|e| eprintln!("serialization error: {e:#?}"))
+        .unwrap();
+    let data = format!("{{\"locations\":{data}}}");
+    // eprintln!("sending: {data:?}");
+
+    ureq::post("https://api.open-elevation.com/api/v1/lookup")
+        .set("Accept", "application/json")
+        .set("Content-Type", "application/json")
+        .send_bytes(data.as_bytes())
+        .inspect_err(|e| eprintln!("fetch error: {e:#?}"))
+        .unwrap()
+        .into_string()
         .unwrap()
 }
 
