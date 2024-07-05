@@ -5,8 +5,7 @@ edition = "2021"
 
 authors = ["Jeromos Kovács <iitsnotme214@proton.me>"]
 description = "Fetch altitude/elevation for geographical coordinates of planet Earth."
-keywords = ["geo"]
-categories = ["command-line-interface"]
+keywords = ["geo", "elevation", "altitude"]
 repository = "https://github.com/jeromeschmied/coordinate-altitude"
 documentation = "https://docs.rs/coordinate-altitude"
 license = "MIT"

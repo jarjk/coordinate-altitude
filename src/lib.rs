@@ -136,9 +136,9 @@ pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let mut cached_needed = Vec::new();
     // the ones not cached
     let mut to_fetch = Vec::new();
-    eprintln!("to get: {coords:#?}");
+    // eprintln!("to get: {coords:#?}");
     for coord in coords {
-        eprintln!("coord: {coord:?}");
+        // eprintln!("coord: {coord:?}");
         if let Some(cached) = cached_altitude_data.iter().find(|cached| {
             let rounded_lat = (coord.latitude * 1000000.).round() / 1000000.; // rounding to 6 decimal, as https://open-elevation.com is this accurate
             let rounded_lon = (coord.longitude * 1000000.).round() / 1000000.; // rounding to 6 decimal, as https://open-elevation.com is this accurate
