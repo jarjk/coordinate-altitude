@@ -1,3 +1,39 @@
+//! Get altitude/elevation data for geographical coordinates of planet Earth
+//!
+//! # WARNING
+//!
+//! every latitude, longitude data will be rounded to 6 decimal places accuracy by [open-elevation api](https://open-elevation.com)
+//!
+//! # Usage
+//!
+//! ```rust
+//! use coordinate_altitude::*;
+//!
+//! // fetch altitude for a single `Coord`
+//! // could also be a tuple for example, and later converted into Coord
+//! // let coord: (f64, f64) = (34.324, 1.88832);
+//! // let coord: Coord = coord.into();
+//! // coordinate as a `Coord`
+//! let coord = Coord::new(34.324, 1.88832);
+//! // and finally fetch altitude for `coord`
+//! let coord: Option<Coord> = coord.fetch_altitude();
+//! println!("coordinate: {coord:?}");
+//!
+//!
+//! // add altitude for a `Vec<Coord>`
+//! let mut coords: Vec<Coord> = vec![   
+//!     (58.2926289, 134.3025286).into(),   // Sheep Mountain
+//!     (7.4894883, 80.8144869).into(),     // Sri Lanka
+//!     Coord::new(47.0745464, 12.6938825), // Großglockner
+//! ];
+//! add_altitude(&mut coords);
+//! println!("coordinates: {coords:#?}");
+//! ```
+//!
+//! - you could also add altitude for a single `Coord`
+//! - or fetch altitude for a `Vec<Coord>`
+//! - you can easily `impl From<YourWayOfStoringCoordinates> for Coord`, see tests/integ.rs
+
 use std::{fs::File, io::Write, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
