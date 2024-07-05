@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write, path::PathBuf};
+
 use serde::{Deserialize, Serialize};
 
 /// universal error type
@@ -52,6 +54,31 @@ impl Coord {
     }
 }
 
+fn cache_path() -> PathBuf {
+    let cache_dir = dirs::cache_dir().unwrap().join("coordinate-altitude");
+    if !cache_dir.exists() {
+        std::fs::create_dir_all(&cache_dir).unwrap();
+    }
+    cache_dir.join("cache.json")
+}
+
+fn load_cache() -> Vec<Coord> {
+    let cache_content = std::fs::read_to_string(cache_path()).unwrap_or_default();
+    // eprintln!("cache: {cache_content:?}");
+
+    serde_json::from_str::<Vec<_>>(&cache_content)
+        .inspect_err(|e| eprintln!("parse error: {e:#?}"))
+        .unwrap_or_default()
+}
+
+fn save_cache(coords: &[Coord]) -> Res<()> {
+    let data =
+        serde_json::to_string(coords).inspect_err(|e| eprintln!("serialization error: {e:#?}"))?;
+    let mut cache_file = File::create(cache_path())?;
+    cache_file.write_all(data.as_bytes())?;
+    Ok(())
+}
+
 /// # Usage
 /// ```rust
 /// use coordinate_altitude::*;
@@ -60,19 +87,53 @@ impl Coord {
 /// println!("coordinates: {coords:?}");
 /// ```
 pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
-    let resp = if let Some(got_resp) = fetch_altitude_get(coords) {
+    let mut cached_altitude_data = load_cache();
+
+    // the ones we need
+    let mut result = Vec::new();
+    // the ones not cached
+    let mut to_fetch = Vec::new();
+    eprintln!("to get: {coords:#?}");
+    for coord in coords {
+        eprintln!("coord: {coord:?}");
+        if let Some(cached) = cached_altitude_data.iter().find(|cached| {
+            let rounded_lat = (coord.latitude * 1000000.).round() / 1000000.;
+            let rounded_lon = (coord.longitude * 1000000.).round() / 1000000.;
+            cached.latitude == rounded_lat && cached.longitude == rounded_lon
+        }) {
+            eprintln!("cached");
+            result.push(*cached);
+        } else {
+            eprintln!("to-fetch");
+            to_fetch.push(*coord);
+        }
+    }
+    eprintln!("cached: {cached_altitude_data:#?}");
+    eprintln!("to fetch: {to_fetch:#?}");
+
+    if to_fetch.is_empty() {
+        return Ok(result);
+    }
+    let res = if let Some(got_resp) = fetch_altitude_get(&to_fetch) {
         got_resp
     } else {
-        fetch_altitude_post(coords)?
+        fetch_altitude_post(&to_fetch)?
     };
     // leading: ""results": {"
-    let resp = &resp[11..];
+    let res = &res[11..];
     // trailing: "}"
-    let resp = &resp[0..resp.len() - 1];
+    let res = &res[0..res.len() - 1];
+    eprintln!("response: {res:?}");
 
-    let resp =
-        serde_json::from_str::<Vec<_>>(resp).inspect_err(|e| eprintln!("parse error: {e:#?}"))?;
-    Ok(resp)
+    let fetched =
+        serde_json::from_str::<Vec<_>>(res).inspect_err(|e| eprintln!("parse error: {e:#?}"))?;
+    eprintln!("fetched: {fetched:#?}");
+
+    cached_altitude_data.extend_from_slice(&fetched);
+    eprintln!("cached: {cached_altitude_data:#?}");
+    save_cache(&cached_altitude_data)?;
+
+    Ok([result, fetched].concat())
 }
 
 pub fn add_altitude(coords: &mut [Coord]) -> Res<()> {
@@ -89,7 +150,7 @@ fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
         .fold(String::new(), |sum, cnt| sum + &cnt.get_form() + "|");
     // trailing |
     form.pop();
-    if form.as_bytes().len() < 1024 {
+    if form.as_bytes().len() > 1024 {
         return None;
     }
     // eprintln!("sending: {form:?}");
