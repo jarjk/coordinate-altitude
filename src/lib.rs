@@ -2,11 +2,11 @@
 #[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub struct Coord {
     /// y
-    latitude: f64,
+    pub latitude: f64,
     /// x
-    longitude: f64,
+    pub longitude: f64,
     /// elevation above sea-level
-    altitude: f64,
+    pub altitude: f64,
 }
 
 impl From<(f32, f32)> for Coord {
