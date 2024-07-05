@@ -78,7 +78,7 @@ mod tests {
     }
 
     #[test]
-    fn coord_ser() {
+    fn coord_deser() {
         let json = r#"{
             "latitude": 32.2643,
             "longitude": 20.333,
@@ -86,5 +86,13 @@ mod tests {
         }"#;
         let result = serde_json::from_str::<Coord>(json).unwrap();
         assert_eq!(result, Coord::new(32.2643, 20.333).with_altitude(354));
+    }
+    #[test]
+    fn coord_ser() {
+        let coord = Coord::new(32.2643, 20.333).with_altitude(354);
+        let result = serde_json::to_string(&coord).unwrap();
+        // note that altitude isn't serialized
+        let json = r#"{"latitude":32.2643,"longitude":20.333}"#;
+        assert_eq!(result, json);
     }
 }
