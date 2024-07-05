@@ -21,6 +21,10 @@ fn main() {
 
 see [examples](./examples) for more
 
+## warning!
+
+_open-elevation is only 6 decimal accurate_
+eg.: `32.324325435` will become `32.324325`
 
 ## dependencies
 

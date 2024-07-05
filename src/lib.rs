@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// universal error type
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
-/// a coordinate
+/// a geographical coordinate of planet Earth
 #[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Coord {
     /// y
@@ -30,6 +30,7 @@ impl Coord {
             altitude: 0.,
         }
     }
+    /// create new [`Coord`] from `self` with `altitude` added
     pub fn with_altitude<F: Into<f64>>(&self, altitude: F) -> Self {
         Self {
             altitude: altitude.into(),
@@ -37,14 +38,17 @@ impl Coord {
         }
     }
 
+    /// get in style that's required for GET form
     fn get_form(&self) -> String {
         format!("{},{}", self.latitude, self.longitude)
     }
 
+    /// create new [`Coord`] from `self` with altitude fetched if any
     pub fn fetch_altitude(&self) -> Option<Self> {
         fetch_altitude(&[*self]).ok()?.first().copied()
     }
 
+    /// fetch altitude and add to `self`
     pub fn add_altitude(&mut self) -> Res<()> {
         let mut with_altitude = [*self];
         add_altitude(&mut with_altitude)?;
@@ -54,6 +58,7 @@ impl Coord {
     }
 }
 
+/// cache file path
 fn cache_path() -> PathBuf {
     let cache_dir = dirs::cache_dir().unwrap().join("coordinate-altitude");
     if !cache_dir.exists() {
@@ -62,6 +67,7 @@ fn cache_path() -> PathBuf {
     cache_dir.join("cache.json")
 }
 
+/// load cached data into a `Vec<Coord>` if any error occurs: `vec![]`
 fn load_cache() -> Vec<Coord> {
     let cache_content = std::fs::read_to_string(cache_path()).unwrap_or_default();
     // eprintln!("cache: {cache_content:?}");
@@ -71,6 +77,7 @@ fn load_cache() -> Vec<Coord> {
         .unwrap_or_default()
 }
 
+/// save these `coords` to cache
 fn save_cache(coords: &[Coord]) -> Res<()> {
     let data =
         serde_json::to_string(coords).inspect_err(|e| eprintln!("serialization error: {e:#?}"))?;
@@ -89,30 +96,31 @@ fn save_cache(coords: &[Coord]) -> Res<()> {
 pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let mut cached_altitude_data = load_cache();
 
-    // the ones we need
-    let mut result = Vec::new();
+    // the ones we need and are already cached
+    let mut cached_needed = Vec::new();
     // the ones not cached
     let mut to_fetch = Vec::new();
     eprintln!("to get: {coords:#?}");
     for coord in coords {
         eprintln!("coord: {coord:?}");
         if let Some(cached) = cached_altitude_data.iter().find(|cached| {
-            let rounded_lat = (coord.latitude * 1000000.).round() / 1000000.;
-            let rounded_lon = (coord.longitude * 1000000.).round() / 1000000.;
+            let rounded_lat = (coord.latitude * 1000000.).round() / 1000000.; // rounding to 6 decimal, as https://open-elevation.com is this accurate
+            let rounded_lon = (coord.longitude * 1000000.).round() / 1000000.; // rounding to 6 decimal, as https://open-elevation.com is this accurate
             cached.latitude == rounded_lat && cached.longitude == rounded_lon
         }) {
-            eprintln!("cached");
-            result.push(*cached);
+            // cached
+            cached_needed.push(*cached);
         } else {
-            eprintln!("to-fetch");
+            // to be fetched
             to_fetch.push(*coord);
         }
     }
-    eprintln!("cached: {cached_altitude_data:#?}");
-    eprintln!("to fetch: {to_fetch:#?}");
+    // eprintln!("cached: {cached_altitude_data:#?}");
+    // eprintln!("to fetch: {to_fetch:#?}");
 
+    // don't fetch if there's nothing to fetch
     if to_fetch.is_empty() {
-        return Ok(result);
+        return Ok(cached_needed);
     }
     let res = if let Some(got_resp) = fetch_altitude_get(&to_fetch) {
         got_resp
@@ -123,19 +131,22 @@ pub fn fetch_altitude(coords: &[Coord]) -> Res<Vec<Coord>> {
     let res = &res[11..];
     // trailing: "}"
     let res = &res[0..res.len() - 1];
-    eprintln!("response: {res:?}");
+    // eprintln!("response: {res:?}");
 
     let fetched =
         serde_json::from_str::<Vec<_>>(res).inspect_err(|e| eprintln!("parse error: {e:#?}"))?;
-    eprintln!("fetched: {fetched:#?}");
+    // eprintln!("fetched: {fetched:#?}");
 
+    // fetched is added to cached to be cached later
     cached_altitude_data.extend_from_slice(&fetched);
-    eprintln!("cached: {cached_altitude_data:#?}");
+    // eprintln!("cached: {cached_altitude_data:#?}");
     save_cache(&cached_altitude_data)?;
 
-    Ok([result, fetched].concat())
+    // the ones we need: from cache and fetched too
+    Ok([cached_needed, fetched].concat())
 }
 
+/// add altitude to existing `coords`
 pub fn add_altitude(coords: &mut [Coord]) -> Res<()> {
     let coords_with_altitude_data = fetch_altitude(coords)?;
     for (i, coord) in coords.iter_mut().enumerate() {
@@ -144,12 +155,15 @@ pub fn add_altitude(coords: &mut [Coord]) -> Res<()> {
     Ok(())
 }
 
+/// fetch altitude with GET method
 fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
+    // eg: "83.32,38.2|21.23,128.534|"
     let mut form = coords
         .iter()
         .fold(String::new(), |sum, cnt| sum + &cnt.get_form() + "|");
-    // trailing |
+    // trailing '|'
     form.pop();
+    // GET api doesn't support bigger than this
     if form.as_bytes().len() > 1024 {
         return None;
     }
@@ -163,6 +177,7 @@ fn fetch_altitude_get(coords: &[Coord]) -> Option<String> {
         .ok()
 }
 
+/// fetch altitude with POST method
 fn fetch_altitude_post(coords: &[Coord]) -> Res<String> {
     let data =
         serde_json::to_string(coords).inspect_err(|e| eprintln!("serialization error: {e:#?}"))?;
