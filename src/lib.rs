@@ -26,22 +26,6 @@ impl Coord {
         }
     }
 }
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize, Deserialize)]
-struct Locations {
-    locations: Vec<Coord>,
-}
-impl From<Locations> for Vec<Coord> {
-    fn from(locations: Locations) -> Self {
-        locations.locations
-    }
-}
-impl From<Vec<Coord>> for Locations {
-    fn from(locations: Vec<Coord>) -> Self {
-        Self { locations }
-    }
-}
-
 impl From<(f32, f32)> for Coord {
     fn from(val: (f32, f32)) -> Self {
         Coord::new(val.0, val.1)
@@ -93,6 +77,49 @@ mod tests {
         let result = serde_json::to_string(&coord).unwrap();
         // note that altitude isn't serialized
         let json = r#"{"latitude":32.2643,"longitude":20.333}"#;
+        assert_eq!(result, json);
+    }
+
+    #[test]
+    fn locations_deser() {
+        let json = r#"
+	[
+		{
+			"latitude": 10,
+			"longitude": -10,
+			"altitude": 21
+		},
+		{
+			"latitude":20.3453,
+			"longitude": 28,
+			"elevation": 32
+		},
+		{
+			"latitude":41.161758,
+			"longitude":-8.583933,
+			"altitude":3798
+		}
+	]"#;
+        let result = serde_json::from_str::<Vec<Coord>>(json).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Coord::new(10, -10).with_altitude(21),
+                Coord::new(20.3453, 28).with_altitude(32),
+                Coord::new(41.161758, -8.583933).with_altitude(3798),
+            ] // .into()
+        );
+    }
+    #[test]
+    fn locations_ser() {
+        let json = r#"[{"latitude":10.0,"longitude":-10.0},{"latitude":20.3453,"longitude":28.0},{"latitude":41.161758,"longitude":-8.583933}]"#;
+        let locations = vec![
+            Coord::new(10, -10).with_altitude(21),
+            Coord::new(20.3453, 28).with_altitude(32),
+            Coord::new(41.161758, -8.583933),
+        ];
+
+        let result = serde_json::to_string(&locations).unwrap();
         assert_eq!(result, json);
     }
 }
