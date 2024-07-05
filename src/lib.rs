@@ -166,8 +166,7 @@ mod tests {
     fn coord_ser() {
         let coord = Coord::new(32.2643, 20.333).with_altitude(354);
         let result = serde_json::to_string(&coord).unwrap();
-        // note that altitude isn't serialized
-        let json = r#"{"latitude":32.2643,"longitude":20.333}"#;
+        let json = r#"{"latitude":32.2643,"longitude":20.333,"altitude":354.0}"#;
         assert_eq!(result, json);
     }
 
@@ -203,9 +202,9 @@ mod tests {
     }
     #[test]
     fn locations_ser() {
-        let json = r#"[{"latitude":10.0,"longitude":-10.0},{"latitude":20.3453,"longitude":28.0},{"latitude":41.161758,"longitude":-8.583933}]"#;
+        let json = r#"[{"latitude":10.0,"longitude":-10.0,"altitude":21.214},{"latitude":20.3453,"longitude":28.0,"altitude":32.0},{"latitude":41.161758,"longitude":-8.583933,"altitude":0.0}]"#;
         let locations = vec![
-            Coord::new(10, -10).with_altitude(21),
+            Coord::new(10, -10).with_altitude(21.214),
             Coord::new(20.3453, 28).with_altitude(32),
             Coord::new(41.161758, -8.583933),
         ];
