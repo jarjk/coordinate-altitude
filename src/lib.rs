@@ -1,9 +1,9 @@
 /// a coordinate
 #[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub struct Coord {
-    /// x
-    latitude: f64,
     /// y
+    latitude: f64,
+    /// x
     longitude: f64,
     /// elevation above sea-level
     altitude: f64,
