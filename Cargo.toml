@@ -6,9 +6,12 @@ edition = "2021"
 authors = ["Jeromos Kovács <iitsnotme214@proton.me>"]
 description = "Fetch altitude/elevation for geographical coordinates of planet Earth."
 keywords = ["geo", "elevation", "altitude"]
-repository = "https://github.com/jeromeschmied/coordinate-altitude"
+repository = "https://github.com/jarjk/coordinate-altitude"
 documentation = "https://docs.rs/coordinate-altitude"
 license = "MIT"
+
+[badges.maintenance]
+status = "deprecated"
 
 [dependencies]
 dirs = "5.0.1"
